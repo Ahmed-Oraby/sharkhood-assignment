@@ -1,124 +1,310 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Provider Data Factory
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A backend data-processing service built with **NestJS, MongoDB, Redis, and BullMQ**.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+The application imports raw provider data, validates and normalizes records, deduplicates entities, and persists the results into a separate MongoDB database.
 
-## Description
+Processing runs asynchronously through background jobs, with run tracking and quarantine of invalid records.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Tech Stack
 
-## Project setup
+- **Node.js / TypeScript**
+- **NestJS** — API and application modules
+- **MongoDB / Mongoose** — raw and normalized data storage
+- **BullMQ / Redis** — asynchronous batch processing
+- **Jest** — unit testing
+- **Docker Compose** — local deployment
 
-```bash
-$ npm install
+## Architecture
+
+The application separates raw provider data from normalized application data.
+
+```text
+Raw MongoDB
+  ├── raw_locations
+  ├── raw_restaurants
+  └── raw_menus
+          |
+          v
+    BullMQ Dispatcher
+          |
+          v
+     Batch Workers
+          |
+          v
+    Provider Adapter
+          |
+          v
+    Field Mapping
+          |
+          v
+      Validation
+          |
+          v
+   Normalization
+          |
+          v
+   Deduplication
+          |
+          v
+    Target MongoDB
+      ├── locations
+      ├── restaurants
+      ├── menus
+      ├── runs
+      ├── batch_results
+      └── sync_errors
 ```
 
-## Compile and run the project
+### Provider Adapter
+
+Provider-specific logic is isolated in adapters.
+
+The Talabat adapter handles:
+
+- Mapping provider fields into canonical fields.
+- Extracting restaurant IDs from URLs.
+- Extracting restaurant IDs and flattening nested menu categories.
+
+The normalization functions operate on canonical fields rather than provider-specific field names.
+
+Additional providers can be supported by introducing new adapters and mapping configurations, although source discovery and some error handling remain provider-specific.
+
+### Data Modeling and Deduplication
+
+The target database uses the following entity identities:
+
+| Entity     | Unique identity                    |
+| ---------- | ---------------------------------- |
+| Location   | `(provider, locationId)`           |
+| Restaurant | `(provider, restaurantId)`         |
+| Menu item  | `(provider, restaurantId, itemId)` |
+
+MongoDB upserts allow repeated processing without creating duplicate entities.
+
+### Invalid Records
+
+Invalid source records are quarantined in `sync_errors` with their source document reference, reason, and raw record data.
+
+Errors can be inspected through the API.
+
+## Getting Started
+
+### Requirements
+
+- Docker
+- Docker Compose
+
+Node.js and npm are only required for running commands outside Docker.
+
+### Start the application
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+docker compose up --build -d
 ```
 
-## Run tests
+This starts:
+
+- NestJS API on port `3000`
+- MongoDB on port `27017`
+- Redis on port `6379`
+
+Check container status:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose ps
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Check application health:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+curl http://localhost:3000/health
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Expected response:
 
-## Observability
+```json
+{
+  "status": "healthy",
+  "services": {
+    "rawMongo": "up",
+    "targetMongo": "up",
+    "redis": "up"
+  }
+}
+```
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+### Import Raw Data
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+Place the supplied raw dataset files in the project's `data/` directory.
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+The import script uses the `MONGODB_RAW_URI` environment variable to connect to the raw database.
 
-To add it to this project:
+With Node.js installed locally:
 
 ```bash
-$ npm install @nestjs/observe
+npm ci
+node scripts/import-raw-data.js
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+Ensure `.env` contains:
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+```env
+MONGODB_RAW_URI=mongodb://localhost:27017/provider_raw
+MONGODB_TARGET_URI=mongodb://localhost:27017/provider_factory
+REDIS_HOST=localhost
+REDIS_PORT=6379
+```
 
-## Resources
+The raw datasets are not committed to the repository.
 
-Check out a few resources that may come in handy when working with NestJS:
+After importing, the running Dockerized application can process the records using the shared MongoDB service.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## API Endpoints
 
-## Support
+### Health Check
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```http
+GET /health
+```
 
-## Stay in touch
+Reports MongoDB and Redis connectivity.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Create Processing Run
 
-## License
+```http
+POST /runs
+Content-Type: application/json
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Request:
+
+```json
+{
+  "provider": "talabat"
+}
+```
+
+Example:
+
+```bash
+curl -X POST http://localhost:3000/runs \
+  -H "Content-Type: application/json" \
+  -d '{"provider":"talabat"}'
+```
+
+Returns a run identifier that can be used to monitor progress.
+
+### Get Run Status
+
+```http
+GET /runs/:id
+```
+
+Example:
+
+```bash
+curl http://localhost:3000/runs/YOUR_RUN_ID
+```
+
+Run information includes:
+
+- Status
+- Provider
+- Start and completion timestamps
+- Total jobs
+- Completed and failed jobs
+- Processed and invalid record counters
+- Last error
+
+### Get Run Errors
+
+```http
+GET /runs/:id/errors
+```
+
+Example:
+
+```bash
+curl http://localhost:3000/runs/YOUR_RUN_ID/errors
+```
+
+Returns paginated quarantine records associated with the processing run.
+
+## Background Processing
+
+The application uses a BullMQ queue named `provider-processing`.
+
+A dispatcher reads source document IDs from the raw collections and schedules batch jobs.
+
+Workers process the batches using the corresponding domain services.
+
+Implemented processing features include:
+
+- Cursor-based source reads
+- Batched processing
+- Configured worker concurrency
+- Job retries with exponential backoff
+- Batch completion tracking
+- Run-level counters
+- MongoDB upserts for idempotent entity writes
+
+## Testing
+
+Run unit tests:
+
+```bash
+npm test
+```
+
+Build the project:
+
+```bash
+npm run build
+```
+
+The test suite covers normalization, field mapping, and provider-specific extraction logic.
+
+## Verified Results
+
+The supplied Talabat dataset was processed successfully using Docker Compose.
+
+| Metric                       |  Result |
+| ---------------------------- | ------: |
+| Completed batch jobs         | 24 / 24 |
+| Failed jobs                  |       0 |
+| Processed record occurrences |  37,689 |
+| Invalid records              |     157 |
+| Unique locations             |     697 |
+| Unique restaurants           |     302 |
+| Unique menu items            |  28,773 |
+| Quarantined records          |     157 |
+
+The completed Docker processing run took approximately **1.76 seconds** in the local test environment.
+
+Repeated processing preserved the expected target entity counts.
+
+## Design Decisions
+
+**Separate databases:** Raw provider data is stored in `provider_raw`, while normalized entities and processing metadata are stored in `provider_factory`.
+
+**Provider adapters:** Provider-specific field mappings and extraction logic are separated from canonical normalization.
+
+**Batch processing:** BullMQ jobs split the workload into smaller units rather than processing the complete dataset in one request.
+
+**Idempotency:** Entity identities and upserts prevent duplicate target records during repeated processing.
+
+**Quarantine:** Invalid records are retained for inspection instead of silently discarded.
+
+## Known Limitations
+
+- Run-level tracking provides aggregate counters rather than detailed timing and counters for every transformation stage.
+- Some source discovery and provider-error handling remain tied to the current raw dataset structure.
+- Job completion tracking relies on worker events and does not yet provide full crash-recovery reconciliation.
+- A dedicated dead-letter queue and automated replay mechanism are not implemented.
+- Unit tests are implemented; a dedicated automated end-to-end integration test is not included.
+- The sample raw datasets must be imported separately before processing.
+
+## Project Status
+
+The core data-processing pipeline, provider adapter, quarantine mechanism, run-tracking API, and Docker deployment are implemented and verified against the supplied dataset.
