@@ -9,12 +9,12 @@ import { SyncError } from '../locations/schemas/sync-error.schema';
 @Injectable()
 export class RunsService {
   constructor(
-    @InjectModel(Run.name)
+    @InjectModel(Run.name, 'target')
     private readonly runModel: Model<Run>,
 
     private readonly processingService: ProcessingService,
 
-    @InjectModel(SyncError.name)
+    @InjectModel(SyncError.name, 'target')
     private readonly syncErrorModel: Model<SyncError>,
   ) {}
 

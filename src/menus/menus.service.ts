@@ -5,17 +5,19 @@ import { Model, Types } from 'mongoose';
 import { Menu } from './schemas/menu.schema';
 import { SyncError } from '../locations/schemas/sync-error.schema';
 import { normalizeMenu, NormalizedMenu } from './normalizers/menu.normalizer';
+import { mapFields } from '../core/mapping/field-mapper';
+import { getProviderAdapter } from '../providers/provider-registry';
 
 @Injectable()
 export class MenusService {
   constructor(
-    @InjectModel('RawMenu')
+    @InjectModel('RawMenu', 'raw')
     private readonly rawMenuModel: Model<any>,
 
-    @InjectModel(Menu.name)
+    @InjectModel(Menu.name, 'target')
     private readonly menuModel: Model<Menu>,
 
-    @InjectModel(SyncError.name)
+    @InjectModel(SyncError.name, 'target')
     private readonly syncErrorModel: Model<SyncError>,
   ) {}
 
@@ -116,6 +118,7 @@ export class MenusService {
       stats.rawDocuments++;
 
       const payload = document.payload;
+      const adapter = getProviderAdapter(document.domain);
 
       if (
         !payload ||
@@ -142,10 +145,15 @@ export class MenusService {
 
       stats.successfulDocuments++;
 
-      for (const restaurant of payload.results) {
-        const restaurantId = Number(restaurant?.outletCode);
+      // Stable index scoped to this source document.
+      let recordIndex = 0;
 
-        if (!Number.isSafeInteger(restaurantId) || restaurantId <= 0) {
+      const restaurants = adapter.extractMenuRestaurants(payload);
+
+      for (const restaurant of restaurants) {
+        const restaurantId = restaurant.restaurantId;
+
+        if (restaurantId === null) {
           stats.invalidRecords++;
 
           await this.quarantine(
@@ -153,7 +161,7 @@ export class MenusService {
             -2,
             'Invalid restaurant outletCode',
             {
-              outletCode: restaurant?.outletCode,
+              outletCode: restaurant.rawRestaurantId,
             },
             runId,
           );
@@ -161,48 +169,47 @@ export class MenusService {
           continue;
         }
 
-        const provider = document.domain || 'talabat';
-        const categories = Array.isArray(restaurant.category)
-          ? restaurant.category
-          : [];
+        for (const item of restaurant.items) {
+          stats.occurrences++;
+          recordIndex++;
 
-        for (const category of categories) {
-          const items = Array.isArray(category?.items) ? category.items : [];
+          const mappedItem = mapFields(
+            item as Record<string, unknown>,
+            adapter.mappings.menu,
+          );
 
-          for (const item of items) {
-            stats.occurrences++;
+          const result = normalizeMenu(
+            mappedItem,
+            document.domain,
+            restaurantId,
+          );
 
-            const result = normalizeMenu(item, provider, restaurantId);
+          if (!result.success) {
+            stats.invalidRecords++;
 
-            if (!result.success) {
-              stats.invalidRecords++;
+            await this.quarantine(
+              document,
+              recordIndex,
+              result.reason,
+              item,
+              runId,
+            );
 
-              // Record index must identify the nested item uniquely.
-              // We will improve this to a structured source path later.
-              await this.quarantine(
-                document,
-                stats.occurrences,
-                result.reason,
-                item,
-                runId,
-              );
+            continue;
+          }
 
-              continue;
-            }
+          const menu = result.data;
+          const key = `${menu.provider}:${menu.restaurantId}:${menu.itemId}`;
 
-            const menu = result.data;
-            const key = `${menu.provider}:${menu.restaurantId}:${menu.itemId}`;
+          if (seenKeys.has(key)) continue;
 
-            if (seenKeys.has(key)) continue;
+          seenKeys.add(key);
+          stats.uniqueMenus++;
 
-            seenKeys.add(key);
-            stats.uniqueMenus++;
+          pending.push(menu);
 
-            pending.push(menu);
-
-            if (pending.length >= batchSize) {
-              await flush();
-            }
+          if (pending.length >= batchSize) {
+            await flush();
           }
         }
       }

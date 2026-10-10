@@ -1,9 +1,11 @@
 import { normalizeMenu } from './menu.normalizer';
+import { mapFields } from '../../core/mapping/field-mapper';
+import { talabatMenuMapping } from '../../providers/talabat/talabat.mapping';
 
 describe('normalizeMenu', () => {
   const validItem = {
-    item_id: 123,
-    item_name: 'Chicken Burger',
+    itemId: 123,
+    name: 'Chicken Burger',
     description: 'Grilled chicken',
     price: 25.5,
     image: null,
@@ -28,14 +30,14 @@ describe('normalizeMenu', () => {
 
   it('rejects missing item ID', () => {
     const result = normalizeMenu(
-      { ...validItem, item_id: undefined },
+      { ...validItem, itemId: undefined },
       'talabat',
       456,
     );
 
     expect(result).toEqual({
       success: false,
-      reason: 'Invalid item_id',
+      reason: 'Invalid itemId',
     });
   });
 
@@ -56,5 +58,55 @@ describe('normalizeMenu', () => {
     );
 
     expect(result.success).toBe(true);
+  });
+
+  it('rejects missing item name', () => {
+    const result = normalizeMenu({ ...validItem, name: '' }, 'talabat', 456);
+
+    expect(result).toEqual({
+      success: false,
+      reason: 'Invalid name',
+    });
+  });
+
+  it('rejects invalid restaurant ID', () => {
+    const result = normalizeMenu(validItem, 'talabat', -1);
+
+    expect(result).toEqual({
+      success: false,
+      reason: 'Invalid restaurant ID',
+    });
+  });
+
+  it('rejects invalid provider', () => {
+    const result = normalizeMenu(validItem, '', 456);
+
+    expect(result).toEqual({
+      success: false,
+      reason: 'Invalid provider',
+    });
+  });
+});
+
+describe('Talabat menu mapping', () => {
+  it('maps Talabat fields to canonical fields', () => {
+    const mapped = mapFields(
+      {
+        item_id: 123,
+        item_name: 'Chicken Burger',
+        description: 'Grilled chicken',
+        price: 25.5,
+        image: null,
+      },
+      talabatMenuMapping,
+    );
+
+    expect(mapped).toEqual({
+      itemId: 123,
+      name: 'Chicken Burger',
+      description: 'Grilled chicken',
+      price: 25.5,
+      image: null,
+    });
   });
 });

@@ -12,21 +12,32 @@ import {
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      {
-        name: 'RawMenu',
-        schema: new Schema({}, { strict: false }),
-        collection: 'raw_menus',
-      },
-      {
-        name: Menu.name,
-        schema: MenuSchema,
-      },
-      {
-        name: SyncError.name,
-        schema: SyncErrorSchema,
-      },
-    ]),
+    // Read-only source database
+    MongooseModule.forFeature(
+      [
+        {
+          name: 'RawMenu',
+          schema: new Schema({}, { strict: false }),
+          collection: 'raw_menus',
+        },
+      ],
+      'raw',
+    ),
+
+    // Normalized target database
+    MongooseModule.forFeature(
+      [
+        {
+          name: Menu.name,
+          schema: MenuSchema,
+        },
+        {
+          name: SyncError.name,
+          schema: SyncErrorSchema,
+        },
+      ],
+      'target',
+    ),
   ],
   controllers: [MenusController],
   providers: [MenusService],

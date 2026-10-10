@@ -23,16 +23,18 @@ const sources = [
 ];
 
 async function main() {
-  const uri =
-    process.env.MONGODB_URI ||
-    'mongodb://localhost:27017/provider_data_factory';
+  const uri = process.env.MONGODB_RAW_URI;
+
+  if (!uri) {
+    throw new Error('MONGODB_RAW_URI is required');
+  }
 
   const client = new MongoClient(uri);
 
   try {
     await client.connect();
 
-    const db = client.db('provider_data_factory');
+    const db = client.db();
 
     for (const source of sources) {
       const filePath = path.join(DATA_DIR, source.file);

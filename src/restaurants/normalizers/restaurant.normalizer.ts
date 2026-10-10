@@ -30,55 +30,27 @@ export function normalizeRestaurant(
   }
 
   if (
-    typeof record.restaurant_name !== 'string' ||
-    !record.restaurant_name.trim()
+    typeof record.restaurantId !== 'number' ||
+    !Number.isSafeInteger(record.restaurantId) ||
+    record.restaurantId <= 0
   ) {
     return {
       success: false,
-      reason: 'Invalid restaurant_name',
+      reason: 'Invalid restaurantId',
     };
   }
 
-  if (typeof record.restaurant_url !== 'string') {
+  if (typeof record.name !== 'string' || !record.name.trim()) {
     return {
       success: false,
-      reason: 'Invalid restaurant_url',
+      reason: 'Invalid name',
     };
   }
 
-  let url: URL;
-
-  try {
-    url = new URL(record.restaurant_url);
-  } catch {
+  if (typeof record.url !== 'string' || !record.url.trim()) {
     return {
       success: false,
-      reason: 'Malformed restaurant_url',
-    };
-  }
-
-  if (url.protocol !== 'https:' || url.hostname !== 'www.talabat.com') {
-    return {
-      success: false,
-      reason: 'Unexpected restaurant URL origin',
-    };
-  }
-
-  const match = url.pathname.match(/^\/uae\/restaurant\/([1-9]\d*)(?:\/|$)/);
-
-  if (!match) {
-    return {
-      success: false,
-      reason: 'Restaurant ID missing from URL',
-    };
-  }
-
-  const restaurantId = Number(match[1]);
-
-  if (!Number.isSafeInteger(restaurantId)) {
-    return {
-      success: false,
-      reason: 'Invalid restaurant ID',
+      reason: 'Invalid url',
     };
   }
 
@@ -86,9 +58,9 @@ export function normalizeRestaurant(
     success: true,
     data: {
       provider: provider.trim(),
-      restaurantId,
-      name: record.restaurant_name.trim(),
-      url: url.toString(),
+      restaurantId: record.restaurantId,
+      name: record.name.trim(),
+      url: record.url.trim(),
     },
   };
 }

@@ -12,16 +12,19 @@ import {
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      {
-        name: Run.name,
-        schema: RunSchema,
-      },
-      {
-        name: SyncError.name,
-        schema: SyncErrorSchema,
-      },
-    ]),
+    MongooseModule.forFeature(
+      [
+        {
+          name: Run.name,
+          schema: RunSchema,
+        },
+        {
+          name: SyncError.name,
+          schema: SyncErrorSchema,
+        },
+      ],
+      'target',
+    ),
     ProcessingModule,
   ],
   controllers: [RunsController],

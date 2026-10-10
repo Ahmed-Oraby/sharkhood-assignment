@@ -10,13 +10,13 @@ export class ProcessingService {
     @InjectQueue('provider-processing')
     private readonly queue: Queue,
 
-    @InjectModel('RawLocation')
+    @InjectModel('RawLocation', 'raw')
     private readonly rawLocationModel: Model<any>,
 
-    @InjectModel('RawRestaurant')
+    @InjectModel('RawRestaurant', 'raw')
     private readonly rawRestaurantModel: Model<any>,
 
-    @InjectModel('RawMenu')
+    @InjectModel('RawMenu', 'raw')
     private readonly rawMenuModel: Model<any>,
   ) {}
 

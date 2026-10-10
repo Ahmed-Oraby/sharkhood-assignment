@@ -1,11 +1,12 @@
 import { normalizeRestaurant } from './restaurant.normalizer';
+import { mapFields } from '../../core/mapping/field-mapper';
+import { talabatAdapter } from '../../providers/talabat/talabat.adapter';
 
 describe('normalizeRestaurant', () => {
   const validRestaurant = {
-    area_name: 'Al Zaab',
-    restaurant_name: 'Example Restaurant',
-    restaurant_url:
-      'https://www.talabat.com/uae/restaurant/42081/example-restaurant?aid=1280',
+    restaurantId: 42081,
+    name: 'Example Restaurant',
+    url: 'https://www.talabat.com/uae/restaurant/42081/example-restaurant?aid=1280',
   };
 
   it('normalizes a valid restaurant', () => {
@@ -15,62 +16,99 @@ describe('normalizeRestaurant', () => {
         provider: 'talabat',
         restaurantId: 42081,
         name: 'Example Restaurant',
-        url: validRestaurant.restaurant_url,
+        url: validRestaurant.url,
       },
     });
   });
 
   it('rejects a missing restaurant name', () => {
     expect(
+      normalizeRestaurant({ ...validRestaurant, name: '' }, 'talabat'),
+    ).toEqual({
+      success: false,
+      reason: 'Invalid name',
+    });
+  });
+
+  it('rejects an invalid restaurant ID', () => {
+    expect(
       normalizeRestaurant(
-        { ...validRestaurant, restaurant_name: '' },
+        { ...validRestaurant, restaurantId: null },
         'talabat',
       ),
     ).toEqual({
       success: false,
-      reason: 'Invalid restaurant_name',
+      reason: 'Invalid restaurantId',
     });
   });
 
-  it('rejects an invalid restaurant URL', () => {
-    const result = normalizeRestaurant(
-      { ...validRestaurant, restaurant_url: 'not-a-url' },
-      'talabat',
+  it('rejects a missing URL', () => {
+    expect(
+      normalizeRestaurant({ ...validRestaurant, url: '' }, 'talabat'),
+    ).toEqual({
+      success: false,
+      reason: 'Invalid url',
+    });
+  });
+
+  it('rejects a missing provider', () => {
+    expect(normalizeRestaurant(validRestaurant, '')).toEqual({
+      success: false,
+      reason: 'Provider is required',
+    });
+  });
+
+  it('rejects a non-object input', () => {
+    expect(normalizeRestaurant(null, 'talabat')).toEqual({
+      success: false,
+      reason: 'Restaurant must be an object',
+    });
+  });
+});
+
+describe('Talabat restaurant adapter', () => {
+  it('maps Talabat fields to canonical fields', () => {
+    const mapped = mapFields(
+      {
+        area_name: 'Al Zaab',
+        restaurant_name: 'Example Restaurant',
+        restaurant_url:
+          'https://www.talabat.com/uae/restaurant/42081/example-restaurant?aid=1280',
+      },
+      talabatAdapter.mappings.restaurant,
     );
 
-    expect(result).toEqual({
-      success: false,
-      reason: 'Malformed restaurant_url',
+    expect(mapped).toEqual({
+      name: 'Example Restaurant',
+      url: 'https://www.talabat.com/uae/restaurant/42081/example-restaurant?aid=1280',
     });
+  });
+
+  it('extracts the restaurant ID instead of the area ID', () => {
+    expect(
+      talabatAdapter.extractRestaurantId(
+        'https://www.talabat.com/uae/restaurant/42081/example-restaurant?aid=1280',
+      ),
+    ).toBe(42081);
+  });
+
+  it('rejects a malformed URL', () => {
+    expect(talabatAdapter.extractRestaurantId('not-a-url')).toBeNull();
   });
 
   it('rejects a URL without a restaurant ID', () => {
-    const result = normalizeRestaurant(
-      {
-        ...validRestaurant,
-        restaurant_url: 'https://www.talabat.com/uae/restaurants',
-      },
-      'talabat',
-    );
-
-    expect(result).toEqual({
-      success: false,
-      reason: 'Restaurant ID missing from URL',
-    });
+    expect(
+      talabatAdapter.extractRestaurantId(
+        'https://www.talabat.com/uae/restaurants',
+      ),
+    ).toBeNull();
   });
 
   it('rejects a URL from another website', () => {
-    const result = normalizeRestaurant(
-      {
-        ...validRestaurant,
-        restaurant_url: 'https://example.com/uae/restaurant/42081/example',
-      },
-      'talabat',
-    );
-
-    expect(result).toEqual({
-      success: false,
-      reason: 'Unexpected restaurant URL origin',
-    });
+    expect(
+      talabatAdapter.extractRestaurantId(
+        'https://example.com/uae/restaurant/42081/example',
+      ),
+    ).toBeNull();
   });
 });

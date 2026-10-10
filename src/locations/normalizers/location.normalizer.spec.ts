@@ -1,12 +1,14 @@
 import { normalizeLocation } from './location.normalizer';
+import { mapFields } from '../../core/mapping/field-mapper';
+import { talabatLocationMapping } from '../../providers/talabat/talabat.mapping';
 
 describe('normalizeLocation', () => {
   it('normalizes a valid location', () => {
     const result = normalizeLocation(
       {
-        location_id: 1552,
-        location_name: 'Al Ramtha',
-        location_slug: 'al-ramtha',
+        locationId: 1552,
+        name: 'Al Ramtha',
+        slug: 'al-ramtha',
       },
       'talabat',
     );
@@ -25,31 +27,31 @@ describe('normalizeLocation', () => {
   it('rejects an invalid location ID', () => {
     const result = normalizeLocation(
       {
-        location_id: '1552',
-        location_name: 'Al Ramtha',
-        location_slug: 'al-ramtha',
+        locationId: '1552',
+        name: 'Al Ramtha',
+        slug: 'al-ramtha',
       },
       'talabat',
     );
 
     expect(result).toEqual({
       success: false,
-      reason: 'Invalid location_id',
+      reason: 'Invalid locationId',
     });
   });
 
   it('rejects a missing location name', () => {
     const result = normalizeLocation(
       {
-        location_id: 1552,
-        location_slug: 'al-ramtha',
+        locationId: 1552,
+        slug: 'al-ramtha',
       },
       'talabat',
     );
 
     expect(result).toEqual({
       success: false,
-      reason: 'Invalid location_name',
+      reason: 'Invalid name',
     });
   });
 
@@ -64,15 +66,32 @@ describe('normalizeLocation', () => {
     expect(
       normalizeLocation(
         {
-          location_id: 1552,
-          location_name: 'Al Ramtha',
-          location_slug: 'al-ramtha',
+          locationId: 1552,
+          name: 'Al Ramtha',
+          slug: 'al-ramtha',
         },
         '',
       ),
     ).toEqual({
       success: false,
       reason: 'Provider is required',
+    });
+  });
+
+  it('maps Talabat location fields to canonical fields', () => {
+    const mapped = mapFields(
+      {
+        location_id: 123,
+        location_name: 'Dubai Marina',
+        location_slug: 'dubai-marina',
+      },
+      talabatLocationMapping,
+    );
+
+    expect(mapped).toEqual({
+      locationId: 123,
+      name: 'Dubai Marina',
+      slug: 'dubai-marina',
     });
   });
 });

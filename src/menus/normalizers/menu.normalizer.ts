@@ -40,20 +40,20 @@ export function normalizeMenu(
   }
 
   if (
-    typeof item.item_id !== 'number' ||
-    !Number.isSafeInteger(item.item_id) ||
-    item.item_id <= 0
+    typeof item.itemId !== 'number' ||
+    !Number.isSafeInteger(item.itemId) ||
+    item.itemId <= 0
   ) {
     return {
       success: false,
-      reason: 'Invalid item_id',
+      reason: 'Invalid itemId',
     };
   }
 
-  if (typeof item.item_name !== 'string' || !item.item_name.trim()) {
+  if (typeof item.name !== 'string' || !item.name.trim()) {
     return {
       success: false,
-      reason: 'Invalid item_name',
+      reason: 'Invalid name',
     };
   }
 
@@ -77,8 +77,8 @@ export function normalizeMenu(
     data: {
       provider: provider.trim(),
       restaurantId,
-      itemId: item.item_id,
-      name: item.item_name.trim(),
+      itemId: item.itemId,
+      name: item.name.trim(),
       description:
         typeof item.description === 'string' ? item.description.trim() : null,
       price,

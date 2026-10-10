@@ -7,22 +7,33 @@ import { SyncError, SyncErrorSchema } from './schemas/sync-error.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      {
-        name: 'RawLocation',
-        schema: {},
-        collection: 'raw_locations',
-      },
-      {
-        name: Location.name,
-        schema: LocationSchema,
-        collection: 'locations',
-      },
-      {
-        name: SyncError.name,
-        schema: SyncErrorSchema,
-      },
-    ]),
+    // Read-only source database
+    MongooseModule.forFeature(
+      [
+        {
+          name: 'RawLocation',
+          schema: {},
+          collection: 'raw_locations',
+        },
+      ],
+      'raw',
+    ),
+
+    // Normalized target database
+    MongooseModule.forFeature(
+      [
+        {
+          name: Location.name,
+          schema: LocationSchema,
+          collection: 'locations',
+        },
+        {
+          name: SyncError.name,
+          schema: SyncErrorSchema,
+        },
+      ],
+      'target',
+    ),
   ],
   controllers: [LocationsController],
   providers: [LocationsService],

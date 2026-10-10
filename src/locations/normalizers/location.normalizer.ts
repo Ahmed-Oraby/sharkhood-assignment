@@ -13,45 +13,39 @@ export function normalizeLocation(
   raw: unknown,
   provider: string,
 ): LocationNormalizationResult {
-  if (!raw || typeof raw !== 'object') {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { success: false, reason: 'Location must be an object' };
   }
 
   const location = raw as Record<string, unknown>;
 
-  if (!provider || typeof provider !== 'string') {
+  if (typeof provider !== 'string' || !provider.trim()) {
     return { success: false, reason: 'Provider is required' };
   }
 
   if (
-    typeof location.location_id !== 'number' ||
-    !Number.isInteger(location.location_id) ||
-    location.location_id <= 0
+    typeof location.locationId !== 'number' ||
+    !Number.isSafeInteger(location.locationId) ||
+    location.locationId <= 0
   ) {
-    return { success: false, reason: 'Invalid location_id' };
+    return { success: false, reason: 'Invalid locationId' };
   }
 
-  if (
-    typeof location.location_name !== 'string' ||
-    !location.location_name.trim()
-  ) {
-    return { success: false, reason: 'Invalid location_name' };
+  if (typeof location.name !== 'string' || !location.name.trim()) {
+    return { success: false, reason: 'Invalid name' };
   }
 
-  if (
-    typeof location.location_slug !== 'string' ||
-    !location.location_slug.trim()
-  ) {
-    return { success: false, reason: 'Invalid location_slug' };
+  if (typeof location.slug !== 'string' || !location.slug.trim()) {
+    return { success: false, reason: 'Invalid slug' };
   }
 
   return {
     success: true,
     data: {
-      provider,
-      locationId: location.location_id,
-      name: location.location_name.trim(),
-      slug: location.location_slug.trim(),
+      provider: provider.trim(),
+      locationId: location.locationId,
+      name: location.name.trim(),
+      slug: location.slug.trim(),
     },
   };
 }

@@ -7,6 +7,8 @@ import { RestaurantsModule } from './restaurants/restaurants.module';
 import { MenusModule } from './menus/menus.module';
 import { ProcessingModule } from './processing/processing.module';
 import { RunsModule } from './runs/runs.module';
+import { HealthModule } from './health/health.module';
+import { validateEnvironment } from './config/env.validation';
 
 @Module({
   imports: [
@@ -15,10 +17,20 @@ import { RunsModule } from './runs/runs.module';
     }),
 
     MongooseModule.forRootAsync({
+      connectionName: 'raw',
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        uri: config.getOrThrow<string>('MONGODB_URI'),
+        uri: config.getOrThrow<string>('MONGODB_RAW_URI'),
+      }),
+    }),
+
+    MongooseModule.forRootAsync({
+      connectionName: 'target',
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        uri: config.getOrThrow<string>('MONGODB_TARGET_URI'),
       }),
     }),
 
@@ -33,6 +45,11 @@ import { RunsModule } from './runs/runs.module';
       }),
     }),
 
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnvironment,
+    }),
+
     LocationsModule,
 
     RestaurantsModule,
@@ -42,6 +59,8 @@ import { RunsModule } from './runs/runs.module';
     ProcessingModule,
 
     RunsModule,
+
+    HealthModule,
   ],
 })
 export class AppModule {}

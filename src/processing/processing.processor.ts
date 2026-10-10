@@ -30,10 +30,10 @@ export class ProcessingProcessor extends WorkerHost {
 
     private readonly menusService: MenusService,
 
-    @InjectModel(Run.name)
+    @InjectModel(Run.name, 'target')
     private readonly runModel: Model<Run>,
 
-    @InjectModel(BatchResult.name)
+    @InjectModel(BatchResult.name, 'target')
     private readonly batchResultModel: Model<BatchResult>,
   ) {
     super();

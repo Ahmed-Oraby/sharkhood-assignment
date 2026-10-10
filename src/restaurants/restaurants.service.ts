@@ -7,17 +7,19 @@ import {
 } from './normalizers/restaurant.normalizer';
 import { SyncError } from '../locations/schemas/sync-error.schema';
 import { Model, Types } from 'mongoose';
+import { mapFields } from '../core/mapping/field-mapper';
+import { getProviderAdapter } from '../providers/provider-registry';
 
 @Injectable()
 export class RestaurantsService {
   constructor(
-    @InjectModel('RawRestaurant')
+    @InjectModel('RawRestaurant', 'raw')
     private readonly rawModel: Model<any>,
 
-    @InjectModel(Restaurant.name)
+    @InjectModel(Restaurant.name, 'target')
     private readonly restaurantModel: Model<Restaurant>,
 
-    @InjectModel(SyncError.name)
+    @InjectModel(SyncError.name, 'target')
     private readonly syncErrorModel: Model<SyncError>,
   ) {}
 
@@ -76,7 +78,25 @@ export class RestaurantsService {
       for (const [index, rawRestaurant] of payload.results.entries()) {
         occurrences++;
 
-        const result = normalizeRestaurant(rawRestaurant, document.domain);
+        const adapter = getProviderAdapter(document.domain);
+
+        const mappedRestaurant = mapFields(
+          rawRestaurant as Record<string, unknown>,
+          adapter.mappings.restaurant,
+        );
+
+        const restaurantId =
+          typeof mappedRestaurant.url === 'string'
+            ? adapter.extractRestaurantId(mappedRestaurant.url)
+            : null;
+
+        const result = normalizeRestaurant(
+          {
+            ...mappedRestaurant,
+            restaurantId,
+          },
+          document.domain,
+        );
 
         if (!result.success) {
           invalidRecords++;

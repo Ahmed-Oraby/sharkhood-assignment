@@ -1,19 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { normalizeLocation } from './normalizers/location.normalizer';
 import { Location } from './schemas/location.schema';
 import { SyncError } from './schemas/sync-error.schema';
-import { Types } from 'mongoose';
+import { mapFields } from '../core/mapping/field-mapper';
+import { getProviderAdapter } from '../providers/provider-registry';
 
 @Injectable()
 export class LocationsService {
   constructor(
-    @InjectModel('RawLocation')
+    @InjectModel('RawLocation', 'raw')
     private readonly rawLocationModel: Model<any>,
-    @InjectModel(Location.name)
+    @InjectModel(Location.name, 'target')
     private readonly locationModel: Model<Location>,
-    @InjectModel(SyncError.name)
+    @InjectModel(SyncError.name, 'target')
     private readonly syncErrorModel: Model<SyncError>,
   ) {}
 
@@ -54,7 +55,14 @@ export class LocationsService {
       for (const rawLocation of results) {
         locationOccurrences++;
 
-        const result = normalizeLocation(rawLocation, provider);
+        const adapter = getProviderAdapter(document.domain);
+
+        const mappedLocation = mapFields(
+          rawLocation as Record<string, unknown>,
+          adapter.mappings.location,
+        );
+
+        const result = normalizeLocation(mappedLocation, document.domain);
 
         if (!result.success) {
           invalidOccurrences++;
@@ -161,7 +169,14 @@ export class LocationsService {
       for (const [index, rawLocation] of results.entries()) {
         locationOccurrences++;
 
-        const result = normalizeLocation(rawLocation, provider);
+        const adapter = getProviderAdapter(document.domain);
+
+        const mappedLocation = mapFields(
+          rawLocation as Record<string, unknown>,
+          adapter.mappings.location,
+        );
+
+        const result = normalizeLocation(mappedLocation, document.domain);
 
         if (!result.success) {
           invalidOccurrences++;
