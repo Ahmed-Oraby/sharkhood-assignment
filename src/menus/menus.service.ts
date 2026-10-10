@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import { Menu } from './schemas/menu.schema';
 import { SyncError } from '../locations/schemas/sync-error.schema';
@@ -24,6 +24,7 @@ export class MenusService {
     recordIndex: number,
     reason: string,
     rawRecord: unknown,
+    runId?: string,
   ): Promise<void> {
     const sourceDocumentId = String(document._id);
 
@@ -44,12 +45,13 @@ export class MenusService {
           sourceDocumentId,
           recordIndex,
         },
+        ...(runId ? { $addToSet: { runIds: runId } } : {}),
       },
       { upsert: true },
     );
   }
 
-  async syncMenus() {
+  async syncMenus(documentIds?: string[], runId?: string) {
     const stats = {
       rawDocuments: 0,
       successfulDocuments: 0,
@@ -101,7 +103,14 @@ export class MenusService {
       pending.length = 0;
     };
 
-    const cursor = this.rawMenuModel.find({}).lean().cursor({ batchSize: 50 });
+    const filter = documentIds?.length
+      ? { _id: { $in: documentIds.map((id) => new Types.ObjectId(id)) } }
+      : {};
+
+    const cursor = this.rawMenuModel
+      .find(filter)
+      .lean()
+      .cursor({ batchSize: 50 });
 
     for await (const document of cursor) {
       stats.rawDocuments++;
@@ -125,6 +134,7 @@ export class MenusService {
             message: payload?.Message,
             statusCode: document.statusCode,
           },
+          runId,
         );
 
         continue;
@@ -138,9 +148,15 @@ export class MenusService {
         if (!Number.isSafeInteger(restaurantId) || restaurantId <= 0) {
           stats.invalidRecords++;
 
-          await this.quarantine(document, -2, 'Invalid restaurant outletCode', {
-            outletCode: restaurant?.outletCode,
-          });
+          await this.quarantine(
+            document,
+            -2,
+            'Invalid restaurant outletCode',
+            {
+              outletCode: restaurant?.outletCode,
+            },
+            runId,
+          );
 
           continue;
         }
@@ -168,6 +184,7 @@ export class MenusService {
                 stats.occurrences,
                 result.reason,
                 item,
+                runId,
               );
 
               continue;

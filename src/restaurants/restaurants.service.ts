@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import { Restaurant } from './schemas/restaurant.schema';
 import {
   normalizeRestaurant,
   NormalizedRestaurant,
 } from './normalizers/restaurant.normalizer';
 import { SyncError } from '../locations/schemas/sync-error.schema';
+import { Model, Types } from 'mongoose';
 
 @Injectable()
 export class RestaurantsService {
@@ -21,7 +21,7 @@ export class RestaurantsService {
     private readonly syncErrorModel: Model<SyncError>,
   ) {}
 
-  async syncRestaurants() {
+  async syncRestaurants(documentIds?: string[], runId?: string) {
     const unique = new Map<string, NormalizedRestaurant>();
 
     let rawDocuments = 0;
@@ -29,7 +29,11 @@ export class RestaurantsService {
     let invalidRecords = 0;
     let providerErrors = 0;
 
-    const cursor = this.rawModel.find().lean().cursor({ batchSize: 50 });
+    const filter = documentIds?.length
+      ? { _id: { $in: documentIds.map((id) => new Types.ObjectId(id)) } }
+      : {};
+
+    const cursor = this.rawModel.find(filter).lean().cursor({ batchSize: 50 });
 
     for await (const document of cursor) {
       rawDocuments++;
@@ -53,12 +57,18 @@ export class RestaurantsService {
           providerMessage ||
           'Missing or invalid payload.results';
 
-        await this.quarantine(document, -1, reason, {
-          message: pageError,
-          error: payload?.error,
-          params: document.params,
-          statusCode: document.statusCode,
-        });
+        await this.quarantine(
+          document,
+          -1,
+          reason,
+          {
+            message: pageError,
+            error: payload?.error,
+            params: document.params,
+            statusCode: document.statusCode,
+          },
+          runId,
+        );
 
         continue;
       }
@@ -71,7 +81,13 @@ export class RestaurantsService {
         if (!result.success) {
           invalidRecords++;
 
-          await this.quarantine(document, index, result.reason, rawRestaurant);
+          await this.quarantine(
+            document,
+            index,
+            result.reason,
+            rawRestaurant,
+            runId,
+          );
 
           continue;
         }
@@ -139,8 +155,16 @@ export class RestaurantsService {
     recordIndex: number,
     reason: string,
     rawRecord: unknown,
+    runId?: string,
   ) {
     const sourceDocumentId = String(document._id);
+
+    console.log('[Restaurant quarantine]', {
+      runId,
+      sourceDocumentId,
+      recordIndex,
+      reason,
+    });
 
     await this.syncErrorModel.updateOne(
       {
@@ -159,6 +183,7 @@ export class RestaurantsService {
           sourceDocumentId,
           recordIndex,
         },
+        ...(runId ? { $addToSet: { runIds: runId } } : {}),
       },
       { upsert: true },
     );

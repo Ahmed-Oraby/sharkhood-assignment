@@ -28,5 +28,6 @@ import {
   ],
   controllers: [RestaurantsController],
   providers: [RestaurantsService],
+  exports: [RestaurantsService],
 })
 export class RestaurantsModule {}

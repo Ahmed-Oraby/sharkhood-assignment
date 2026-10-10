@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { normalizeLocation } from './normalizers/location.normalizer';
 import { Location } from './schemas/location.schema';
 import { SyncError } from './schemas/sync-error.schema';
+import { Types } from 'mongoose';
 
 @Injectable()
 export class LocationsService {
@@ -80,7 +81,7 @@ export class LocationsService {
     };
   }
 
-  async syncLocations() {
+  async syncLocations(documentIds?: string[], runId?: string) {
     const pending = new Map<
       string,
       {
@@ -135,8 +136,12 @@ export class LocationsService {
       pending.clear();
     };
 
+    const filter = documentIds?.length
+      ? { _id: { $in: documentIds.map((id) => new Types.ObjectId(id)) } }
+      : {};
+
     const cursor = this.rawLocationModel
-      .find()
+      .find(filter)
       .lean()
       .cursor({ batchSize: 100 });
 
@@ -178,6 +183,7 @@ export class LocationsService {
                 sourceDocumentId: String(document._id),
                 recordIndex: index,
               },
+              ...(runId ? { $addToSet: { runIds: runId } } : {}),
             },
             { upsert: true },
           );

@@ -22,6 +22,9 @@ export class SyncError {
 
   @Prop({ type: SchemaTypes.Mixed })
   rawRecord: unknown;
+
+  @Prop({ type: [String], default: [] })
+  runIds: string[];
 }
 
 export const SyncErrorSchema = SchemaFactory.createForClass(SyncError);
